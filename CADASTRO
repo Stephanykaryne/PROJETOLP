@@ -1,0 +1,70 @@
+<html>
+<head><title> CADASTRO </title></head>
+<body>
+<h1>Cadastre com o email ou com o telefone</h1>
+<form method="post" action="" autocomplete="off">
+<label>Usuario:</label><br>
+<input name="usuario" size="30" type="text"><br>
+<label>Senha:</label><br>
+<input name="senha" size="7" type="password"><br>
+<button type="submit" name="cadastrar">Cadastro</button>
+</form>
+</body>
+<?php
+include "conexao.php";
+function validarCPF($cpf) {
+    $cpf = preg_replace('/[^0-9]/', '', $cpf);
+    if (strlen($cpf) != 11) {
+        return false;
+    }
+    if (preg_match('/(\d)\1{10}/', $cpf)) {
+        return false;
+    }
+    for ($t = 9; $t < 11; $t++) {
+        for ($d = 0, $c = 0; $c < $t; $c++) {
+            $d += $cpf[$c] * (($t + 1) - $c);
+        }
+        $d = ((10 * $d) % 11) % 10;
+        if ($cpf[$c] != $d) {
+            return false;
+        }
+    }
+    return true;
+}
+
+if(isset($_POST["cadastrar"])):
+$usuario=trim($_POST['usuario']);
+$senha=trim($_POST['senha']);
+$emailvalido=filter_var($usuario, FILTER_VALIDATE_EMAIL);
+$celularvalido=preg_match('/^[0-9]{10,30}$/', $usuario);
+$cpfvalido = validarCPF($usuario);
+if($emailvalido || $celularvalido || $cpfvalido){
+    
+    // 🔒 Criptografando senha
+    $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
+    
+    $sql = "INSERT INTO login (usuario, senha) VALUES (?, ?)";
+    
+    $stmt = $conexao->prepare($sql);
+    
+    // 🔎 Verifica erro no prepare
+    if(!$stmt){
+        die("Erro no prepare: " . $conexao->error);
+    }-
+    
+    $stmt->bind_param("ss", $usuario, $senhaHash);
+    
+    if($stmt->execute()){
+        echo "<p class='sucesso'>Cadastro realizado com sucesso!</p>";
+    } else {
+        echo "<p class='erro'>Erro ao cadastrar: " . $stmt->error . "</p>";
+    }
+    
+    $stmt->close();
+    
+} else {
+    echo "<p class='erro'>Digite apenas um EMAIL válido ou um CELULAR com 10 ou 11 números.</p>";
+}
+endif;
+?>
+</html>
