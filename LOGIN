@@ -1,0 +1,33 @@
+<html>
+<head><title> LOGIN </title></head>
+<body>
+<h1>Cadastre coloque seus dados</h1>
+<form method="post" action="" autocomplete="off">
+<label>Email:</label><br>
+<input name="email" size="30" type="text"><br>
+<label>Senha:</label><br>
+<input name="senha" size="10" type="password"><br>
+<button type="submit" name="login">Entrar</button>
+</form>
+<button>
+<a href='cadastro.php'>Cadastro</a>
+</button>
+</body>
+</html>
+<?php
+include 'conexao.php';
+if(isset($_POST['login'])):
+$email = $_POST['email'];
+$senha = $_POST['senha'];
+// Busca usuário pelo email
+$sql = mysqli_query($conexao, "SELECT * FROM usuario WHERE email = '$email'");
+$dados = mysqli_fetch_assoc($sql);
+// Verifica se encontrou e se a senha confere
+if ($dados && password_verify($senha, $dados['senha'])) {
+   $_SESSION['usuario'] = $dados['nome'];
+   header("Location: pagina_principal.php");
+} else {
+   echo "<p style='color:red;'>Email ou senha inválidos!</p>";
+}
+endif;
+?>
