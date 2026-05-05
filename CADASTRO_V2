@@ -1,0 +1,37 @@
+<html>
+<head><title> CADASTRO </title></head>
+<body>
+<h1>Cadastre coloque seus dados</h1>
+<form method="post" action="" autocomplete="off">
+<label>Nome:</label><br>
+<input name="nome" size="30" type="text"><br>
+<label>Senha:</label><br>
+<input name="senha" size="10" type="password"><br>
+<label>Email:</label><br>
+<input name="email" size="30" type="text"><br>
+<button type="submit" name="cadastrar">Cadastro</button>
+</form>
+<button>
+<a href='login.php'>login</a>
+</button>
+</body>
+</html>
+<?php
+include 'conexao.php';
+if(isset($_POST['cadastrar'])):
+$nome=$_POST['nome'];
+$senha=filter_input(INPUT_POST, 'senha', FILTER_DEFAULT);
+$senha_crip=password_hash($senha, PASSWORD_DEFAULT);
+$email=$_POST['email'];
+if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $senha)) {
+echo "<p class='erro'>A senha deve ter no mínimo 8 caracteres, incluindo letra maiúscula, minúscula e número.</p>";
+   exit;
+}
+// 📧 Validação do email
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+echo "<p class='erro'>Email inválido!</p>";
+exit;
+}
+$sql=mysqli_query($conexao,"INSERT INTO `usuario` (`nome`, `senha`, `email`) VALUES ('$nome', '$senha_crip', '$email')");
+endif;
+?>
