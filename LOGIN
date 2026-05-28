@@ -25,7 +25,7 @@ $dados = mysqli_fetch_assoc($sql);
 // Verifica se encontrou e se a senha confere
 if ($dados && password_verify($senha, $dados['senha'])) {
    $_SESSION['usuario'] = $dados['nome'];
-   header("Location: pagina_principal.php");
+   header("Location: menu.php");
 } else {
    echo "<p style='color:red;'>Email ou senha inválidos!</p>";
 }
