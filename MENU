@@ -1,0 +1,189 @@
+<?php
+session_start();
+
+// Bloqueia cache — impede voltar com o botão do navegador
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
+
+// Se não está logado, volta para o login
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$nome = $_SESSION['nome'] ?? $_SESSION['usuario'];
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Menu</title>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+    }
+    /* ── Barra do topo ── */
+    .topbar {
+      background: #2c3e50;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .topbar span { font-size: 15px; }
+
+    /* ── Botão Sair ── */
+    .btn-sair {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .2s;
+    }
+
+    .btn-sair:hover { background: #c0392b; }
+
+    /* ── Conteúdo ── */
+    .conteudo {
+      padding: 40px 32px;
+    }
+
+    .conteudo h1 { color: #2c3e50; margin-bottom: 24px; }
+
+    .cards {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      width: 200px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      text-decoration: none;
+      color: #2c3e50;
+      transition: box-shadow .2s, transform .2s;
+    }
+
+    .card:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,.15);
+      transform: translateY(-3px);
+    }
+
+    .card .icone { font-size: 36px; margin-bottom: 12px; }
+    .card h3 { font-size: 15px; }
+
+    /* ── Modal de confirmação ── */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 99;
+    }
+
+    .overlay.ativo { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 36px 32px;
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+    }
+
+    .modal p { font-size: 15px; color: #555; margin: 12px 0 24px; }
+
+    .modal-botoes { display: flex; gap: 12px; }
+
+    .modal-botoes a,
+    .modal-botoes button {
+      flex: 1;
+      padding: 11px;
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      text-align: center;
+    }
+
+    .btn-cancelar { background: #eee; color: #555; }
+    .btn-cancelar:hover { background: #ddd; }
+
+    .btn-confirmar { background: #e74c3c; color: #fff; }
+    .btn-confirmar:hover { background: #c0392b; }
+  </style>
+</head>
+<body>
+
+<!-- Barra do topo com botão de sair -->
+<div class="topbar">
+  <span>👤 <?= htmlspecialchars($nome) ?></span>
+
+  <button class="btn-sair" onclick="abrirModal()">🚪 Sair</button>
+</div>
+
+<!-- Conteúdo do menu -->
+<div class="conteudo">
+  <h1>Menu Principal</h1>
+
+  <div class="cards">
+    <a href="cadastro.php" class="card">
+      <div class="icone">📝</div>
+      <h3>Cadastro</h3>
+    </a>
+
+    <a href="listar.php" class="card">
+      <div class="icone">📋</div>
+      <h3>Listagem</h3>
+    </a>
+
+    <a href="#" class="card">
+      <div class="icone">⚙️</div>
+      <h3>Configurações</h3>
+    </a>
+  </div>
+</div>
+
+<!-- Modal: confirmação de saída -->
+<div class="overlay" id="overlay" onclick="fecharFora(event)">
+  <div class="modal">
+    <h2>🚪 Sair?</h2>
+    <p>Tem certeza que deseja sair do sistema?</p>
+    <div class="modal-botoes">
+      <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+      <a href="sair.php" class="btn-confirmar">Sim, sair</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function abrirModal()  { document.getElementById('overlay').classList.add('ativo'); }
+  function fecharModal() { document.getElementById('overlay').classList.remove('ativo'); }
+
+  function fecharFora(e) {
+    if (e.target === document.getElementById('overlay')) fecharModal();
+  }
+</script>
+
+</body>
+</html>
