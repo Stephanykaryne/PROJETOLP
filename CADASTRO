@@ -1,70 +1,237 @@
-<html>
-<head><title> CADASTRO </title></head>
-<body>
-<h1>Cadastre com o email ou com o telefone</h1>
-<form method="post" action="" autocomplete="off">
-<label>Usuario:</label><br>
-<input name="usuario" size="30" type="text"><br>
-<label>Senha:</label><br>
-<input name="senha" size="7" type="password"><br>
-<button type="submit" name="cadastrar">Cadastro</button>
-</form>
-</body>
 <?php
-include "conexao.php";
-function validarCPF($cpf) {
-    $cpf = preg_replace('/[^0-9]/', '', $cpf);
-    if (strlen($cpf) != 11) {
-        return false;
-    }
-    if (preg_match('/(\d)\1{10}/', $cpf)) {
-        return false;
-    }
-    for ($t = 9; $t < 11; $t++) {
-        for ($d = 0, $c = 0; $c < $t; $c++) {
-            $d += $cpf[$c] * (($t + 1) - $c);
-        }
-        $d = ((10 * $d) % 11) % 10;
-        if ($cpf[$c] != $d) {
-            return false;
-        }
-    }
-    return true;
-}
+include 'conexao.php';
+$erro    = "";
+$sucesso = "";
+if (isset($_POST['cadastrar'])):
+    $senha = filter_input(INPUT_POST, 'senha', FILTER_DEFAULT);
+    $email = $_POST['email'];
 
-if(isset($_POST["cadastrar"])):
-$usuario=trim($_POST['usuario']);
-$senha=trim($_POST['senha']);
-$emailvalido=filter_var($usuario, FILTER_VALIDATE_EMAIL);
-$celularvalido=preg_match('/^[0-9]{10,30}$/', $usuario);
-$cpfvalido = validarCPF($usuario);
-if($emailvalido || $celularvalido || $cpfvalido){
-    
-    // 🔒 Criptografando senha
-    $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
-    
-    $sql = "INSERT INTO login (usuario, senha) VALUES (?, ?)";
-    
-    $stmt = $conexao->prepare($sql);
-    
-    // 🔎 Verifica erro no prepare
-    if(!$stmt){
-        die("Erro no prepare: " . $conexao->error);
-    }-
-    
-    $stmt->bind_param("ss", $usuario, $senhaHash);
-    
-    if($stmt->execute()){
-        echo "<p class='sucesso'>Cadastro realizado com sucesso!</p>";
+    // Validação da senha
+    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/', $senha)) {
+        $erro = "A senha deve ter no mínimo 8 caracteres, incluindo letra maiúscula, minúscula e número.";
+    // Validação do email
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $erro = "Email inválido!";
     } else {
-        echo "<p class='erro'>Erro ao cadastrar: " . $stmt->error . "</p>";
+        $senha_crip = password_hash($senha, PASSWORD_DEFAULT);
+        $sql = mysqli_query($conexao, "INSERT INTO `usuario` (`email`, `senha`) VALUES ('$email', '$senha_crip')");
+
+        if ($sql) {
+            $sucesso = "Cadastro realizado com sucesso!";
+        } else {
+            $erro = "Erro ao cadastrar. Tente novamente.";
+        }
     }
-    
-    $stmt->close();
-    
-} else {
-    echo "<p class='erro'>Digite apenas um EMAIL válido ou um CELULAR com 10 ou 11 números.</p>";
-}
 endif;
 ?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d0d0d;
+      --surface: #161616;
+      --border:  #222;
+      --accent:  #6366f1;
+      --accent2: #a78bfa;
+      --danger:  #ef4444;
+      --success: #22c55e;
+      --text:    #f0f0f0;
+      --muted:   #555;
+    }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-image:
+        radial-gradient(ellipse at 10% 0%,   rgba(99,102,241,.12) 0%, transparent 55%),
+        radial-gradient(ellipse at 90% 90%,  rgba(167,139,250,.08) 0%, transparent 50%);
+      padding: 32px 16px;
+    }
+
+    /* ── CARD ─────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 25px 60px rgba(0,0,0,.5);
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 32px;
+    }
+
+    /* ── CAMPOS ───────────────────────────── */
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      background: #1e1e1e;
+      border: 1px solid #2e2e2e;
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      margin-bottom: 20px;
+      transition: border-color .2s;
+      outline: none;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    /* ── BOTÃO CADASTRAR ──────────────────── */
+    .btn-cadastrar {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+      margin-bottom: 16px;
+    }
+
+    .btn-cadastrar:hover  { background: #4f52d9; }
+    .btn-cadastrar:active { transform: scale(.98); }
+
+    /* ── BOTÃO IR PARA LOGIN ──────────────── */
+    .btn-login {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #aaa;
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+
+    .btn-login:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── MENSAGENS ────────────────────────── */
+    .msg-erro {
+      background: rgba(239,68,68,.12);
+      border: 1px solid rgba(239,68,68,.3);
+      color: #f87171;
+      font-size: 13px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .msg-sucesso {
+      background: rgba(34,197,94,.12);
+      border: 1px solid rgba(34,197,94,.3);
+      color: #4ade80;
+      font-size: 13px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    /* ── DICA DE SENHA ────────────────────── */
+    .dica {
+      font-size: 11px;
+      color: #444;
+      margin-top: -14px;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">&#9632; Sistema</div>
+  <h1>Criar conta</h1>
+  <p class="sub">Preencha os dados para se cadastrar</p>
+  <!-- Mensagem de erro -->
+  <?php if ($erro): ?>
+    <div class="msg-erro">⚠️ <?= htmlspecialchars($erro) ?></div>
+  <?php endif; ?>
+  <!-- Mensagem de sucesso -->
+  <?php if ($sucesso): ?>
+    <div class="msg-sucesso">✅ <?= htmlspecialchars($sucesso) ?></div>
+  <?php endif; ?>
+  <form method="POST" action="" autocomplete="off">
+    <label for="email">Email</label>
+    <input type="text" id="email" name="email"
+           placeholder="seu@email.com"
+           value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+           required autofocus>
+    <label for="senha">Senha</label>
+    <input type="password" id="senha" name="senha"
+           placeholder="Mínimo 8 caracteres" required>
+    <p class="dica">
+      A senha deve ter ao menos 8 caracteres,<br>
+      uma letra maiúscula, uma minúscula e um número.
+    </p>
+    <button type="submit" name="cadastrar" class="btn-cadastrar">
+      Cadastrar
+    </button>
+  </form>
+  <hr class="divider">
+  <a href="login.php" class="btn-login">Já tenho conta — Fazer login</a>
+</div>
+</body>
 </html>
