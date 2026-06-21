@@ -1,0 +1,672 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit();
+}
+
+include 'conexao.php';
+
+// ── Exclusão por nome ─────────────────────────────────────────────────────────
+if (isset($_GET['excluir']) && $_GET['excluir'] !== "") {
+    $nome_del = mysqli_real_escape_string($conexao, $_GET['excluir']);
+    mysqli_query($conexao, "DELETE FROM `objetos` WHERE `nome` = '$nome_del' LIMIT 1");
+    header("Location: listar.php?msg=excluido");
+    exit();
+}
+
+// ── Edição via POST ───────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_nome'])) {
+    $nome_original = mysqli_real_escape_string($conexao, $_POST['nome_original']);
+    $novo_nome     = trim(mysqli_real_escape_string($conexao, $_POST['editar_nome']));
+    $nova_qtd      = max(0, intval($_POST['editar_quantidade']));
+
+    if ($novo_nome !== "") {
+        mysqli_query($conexao,
+            "UPDATE `objetos` SET `nome` = '$novo_nome', `quantidade` = $nova_qtd
+             WHERE `nome` = '$nome_original' LIMIT 1"
+        );
+    }
+    header("Location: listar.php?msg=editado");
+    exit();
+}
+
+// ── Busca e ordenação ─────────────────────────────────────────────────────────
+$busca   = trim($_GET['busca'] ?? "");
+$ordem   = in_array($_GET['ordem'] ?? "", ['nome', 'quantidade']) ? $_GET['ordem'] : 'nome';
+$dir     = ($_GET['dir'] ?? 'ASC') === 'DESC' ? 'DESC' : 'ASC';
+$dir_inv = $dir === 'ASC' ? 'DESC' : 'ASC';
+
+$where = "";
+if ($busca !== "") {
+    $busca_seg = mysqli_real_escape_string($conexao, $busca);
+    $where = "WHERE `nome` LIKE '%$busca_seg%'";
+}
+
+// ── Contagem total ────────────────────────────────────────────────────────────
+$res_total = mysqli_query($conexao, "SELECT COUNT(*) AS total FROM `objetos` $where");
+if (!$res_total) {
+    die("Erro: " . mysqli_error($conexao) . "<br>Verifique se a tabela se chama <strong>objetos</strong>.");
+}
+$total = (int) mysqli_fetch_assoc($res_total)['total'];
+
+// ── Paginação ─────────────────────────────────────────────────────────────────
+$por_pagina = 10;
+$pagina     = max(1, intval($_GET['pagina'] ?? 1));
+$total_pags = max(1, (int) ceil($total / $por_pagina));
+$pagina     = min($pagina, $total_pags);
+$offset     = ($pagina - 1) * $por_pagina;
+
+$resultado = mysqli_query($conexao,
+    "SELECT `nome`, `quantidade` FROM `objetos` $where ORDER BY `$ordem` $dir LIMIT $por_pagina OFFSET $offset"
+);
+if (!$resultado) {
+    die("Erro: " . mysqli_error($conexao));
+}
+
+$msg = $_GET['msg'] ?? "";
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Listagem de Objetos</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d0d0d;
+      --surface: #161616;
+      --border:  #222;
+      --accent:  #6366f1;
+      --accent2: #a78bfa;
+      --danger:  #ef4444;
+      --success: #22c55e;
+      --text:    #f0f0f0;
+      --muted:   #555;
+    }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 0%,  rgba(99,102,241,.12) 0%, transparent 55%),
+        radial-gradient(ellipse at 90% 90%, rgba(167,139,250,.08) 0%, transparent 50%);
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 60px;
+      background: rgba(13,13,13,.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      z-index: 100;
+    }
+
+    .topbar-logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .btn-voltar {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #aaa;
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: border-color .2s, color .2s;
+    }
+
+    .btn-voltar:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── CONTEÚDO ── */
+    .conteudo {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 96px 24px 60px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .page-header h1 { font-size: 26px; font-weight: 700; }
+    .page-header p  { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    .btn-novo {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 18px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+
+    .btn-novo:hover { background: #4f52d9; }
+
+    /* ── MENSAGEM ── */
+    .msg-sucesso {
+      background: rgba(34,197,94,.12);
+      border: 1px solid rgba(34,197,94,.3);
+      color: #4ade80;
+      font-size: 13px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    /* ── BUSCA ── */
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .search-wrap { position: relative; flex: 1; min-width: 200px; }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      padding: 10px 14px 10px 38px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .2s;
+      margin: 0;
+    }
+
+    .search-wrap input:focus { border-color: var(--accent); }
+
+    .btn-buscar {
+      padding: 10px 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #aaa;
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color .2s, color .2s;
+    }
+
+    .btn-buscar:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── TABELA ── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+    thead th {
+      padding: 14px 20px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    thead th a {
+      color: var(--muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: color .2s;
+    }
+
+    thead th a:hover,
+    thead th a.ativo { color: var(--accent); }
+
+    tbody tr {
+      border-bottom: 1px solid #1c1c1c;
+      transition: background .15s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover      { background: rgba(99,102,241,.05); }
+
+    tbody td { padding: 14px 20px; vertical-align: middle; }
+
+    /* ── BADGE QUANTIDADE ── */
+    .qtd-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .qtd-baixo { background: rgba(239,68,68,.12);  color: #f87171; }
+    .qtd-medio { background: rgba(234,179,8,.12);  color: #fbbf24; }
+    .qtd-alto  { background: rgba(34,197,94,.12);  color: #4ade80; }
+
+    /* ── AÇÕES ── */
+    .acoes { display: flex; gap: 8px; }
+
+    .btn-acao {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'Sora', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background .2s, border-color .2s;
+    }
+
+    .btn-editar {
+      background: rgba(99,102,241,.08);
+      border-color: rgba(99,102,241,.2);
+      color: #818cf8;
+    }
+
+    .btn-editar:hover {
+      background: rgba(99,102,241,.18);
+      border-color: var(--accent);
+    }
+
+    .btn-excluir {
+      background: rgba(239,68,68,.08);
+      border-color: rgba(239,68,68,.2);
+      color: #f87171;
+    }
+
+    .btn-excluir:hover {
+      background: rgba(239,68,68,.18);
+      border-color: var(--danger);
+    }
+
+    /* ── VAZIO ── */
+    .vazio { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .vazio-icone { font-size: 40px; margin-bottom: 12px; }
+    .vazio p { font-size: 14px; }
+
+    /* ── PAGINAÇÃO ── */
+    .paginacao {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .pag-btns { display: flex; gap: 4px; }
+
+    .pag-btn {
+      width: 34px; height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: #aaa;
+      font-family: 'Sora', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color .2s, color .2s;
+    }
+
+    .pag-btn:hover   { border-color: var(--accent); color: var(--accent); }
+    .pag-btn.ativo   { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pag-btn.disable { opacity: .3; pointer-events: none; }
+
+    /* ── OVERLAY / MODAL ── */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .overlay.ativo { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      width: 340px;
+      text-align: center;
+    }
+
+    .modal-icone { font-size: 36px; margin-bottom: 14px; }
+    .modal h2    { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .modal p     { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+    .modal strong { color: var(--text); }
+
+    .modal-botoes { display: flex; gap: 12px; }
+
+    .modal-botoes a,
+    .modal-botoes button {
+      flex: 1; padding: 11px;
+      border-radius: 8px;
+      font-family: 'Sora', sans-serif;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none;
+      text-decoration: none;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity .2s;
+    }
+
+    .modal-botoes a:hover,
+    .modal-botoes button:hover { opacity: .85; }
+
+    .btn-cancelar  { background: #222; border: 1px solid #333 !important; color: #aaa; }
+    .btn-confirmar { background: var(--danger); color: #fff; }
+
+    /* ── MODAL EDIÇÃO ── */
+    .modal-edit { width: 380px; text-align: left; }
+    .modal-edit h2 { text-align: center; }
+    .modal-edit .modal-icone { text-align: center; }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+
+    .field-group label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .field-group input {
+      width: 100%;
+      padding: 10px 14px;
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .field-group input:focus { border-color: var(--accent); }
+
+    .btn-salvar {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-salvar:hover { background: #4f52d9; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="topbar-logo">&#9632; Sistema</span>
+  <a href="menu.php" class="btn-voltar">← Voltar ao menu</a>
+</header>
+
+<main class="conteudo">
+
+  <div class="page-header">
+    <div>
+      <h1>📋 Listagem de Objetos</h1>
+      <p>
+        <?= $total ?> <?= $total === 1 ? 'registro encontrado' : 'registros encontrados' ?>
+        <?= $busca !== "" ? " para \"" . htmlspecialchars($busca) . "\"" : "" ?>
+      </p>
+    </div>
+    <a href="cad_objeto.php" class="btn-novo">+ Novo cadastro</a>
+  </div>
+
+  <?php if ($msg === 'excluido'): ?>
+    <div class="msg-sucesso">✅ Objeto excluído com sucesso.</div>
+  <?php elseif ($msg === 'editado'): ?>
+    <div class="msg-sucesso">✏️ Objeto atualizado com sucesso.</div>
+  <?php endif; ?>
+
+  <!-- Busca -->
+  <form method="GET" action="" class="toolbar">
+    <div class="search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" name="busca" placeholder="Buscar por nome do objeto…"
+             value="<?= htmlspecialchars($busca) ?>">
+    </div>
+    <input type="hidden" name="ordem" value="<?= htmlspecialchars($ordem) ?>">
+    <input type="hidden" name="dir"   value="<?= htmlspecialchars($dir) ?>">
+    <button type="submit" class="btn-buscar">Buscar</button>
+    <?php if ($busca !== ""): ?>
+      <a href="listar.php" class="btn-buscar">✕ Limpar</a>
+    <?php endif; ?>
+  </form>
+
+  <!-- Tabela -->
+  <div class="table-wrap">
+    <?php if ($total === 0): ?>
+      <div class="vazio">
+        <div class="vazio-icone">📭</div>
+        <p><?= $busca !== "" ? "Nenhum objeto encontrado para essa busca." : "Nenhum objeto cadastrado ainda." ?></p>
+      </div>
+    <?php else: ?>
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <a href="?busca=<?= urlencode($busca) ?>&ordem=nome&dir=<?= $ordem === 'nome' ? $dir_inv : 'ASC' ?>"
+                 class="<?= $ordem === 'nome' ? 'ativo' : '' ?>">
+                Nome <?= $ordem === 'nome' ? ($dir === 'ASC' ? '↑' : '↓') : '' ?>
+              </a>
+            </th>
+            <th>
+              <a href="?busca=<?= urlencode($busca) ?>&ordem=quantidade&dir=<?= $ordem === 'quantidade' ? $dir_inv : 'ASC' ?>"
+                 class="<?= $ordem === 'quantidade' ? 'ativo' : '' ?>">
+                Quantidade <?= $ordem === 'quantidade' ? ($dir === 'ASC' ? '↑' : '↓') : '' ?>
+              </a>
+            </th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php while ($row = mysqli_fetch_assoc($resultado)): ?>
+            <?php
+              $qtd = intval($row['quantidade']);
+              if ($qtd <= 5)      $qtd_class = 'qtd-baixo';
+              elseif ($qtd <= 20) $qtd_class = 'qtd-medio';
+              else                $qtd_class = 'qtd-alto';
+            ?>
+            <tr>
+              <td><?= htmlspecialchars($row['nome']) ?></td>
+              <td><span class="qtd-badge <?= $qtd_class ?>"><?= $qtd ?></span></td>
+              <td>
+                <div class="acoes">
+                  <button class="btn-acao btn-editar"
+                          onclick="abrirEdicao('<?= htmlspecialchars(addslashes($row['nome'])) ?>', <?= $qtd ?>)">
+                    ✎ Editar
+                  </button>
+                  <button class="btn-acao btn-excluir"
+                          onclick="confirmarExclusao('<?= htmlspecialchars(addslashes($row['nome'])) ?>')">
+                    ✕ Excluir
+                  </button>
+                </div>
+              </td>
+            </tr>
+          <?php endwhile; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <!-- Paginação -->
+  <?php if ($total_pags > 1): ?>
+    <div class="paginacao">
+      <span>Página <?= $pagina ?> de <?= $total_pags ?></span>
+      <div class="pag-btns">
+        <a href="?busca=<?= urlencode($busca) ?>&ordem=<?= $ordem ?>&dir=<?= $dir ?>&pagina=<?= $pagina - 1 ?>"
+           class="pag-btn <?= $pagina <= 1 ? 'disable' : '' ?>">‹</a>
+
+        <?php for ($p = 1; $p <= $total_pags; $p++): ?>
+          <a href="?busca=<?= urlencode($busca) ?>&ordem=<?= $ordem ?>&dir=<?= $dir ?>&pagina=<?= $p ?>"
+             class="pag-btn <?= $p === $pagina ? 'ativo' : '' ?>"><?= $p ?></a>
+        <?php endfor; ?>
+
+        <a href="?busca=<?= urlencode($busca) ?>&ordem=<?= $ordem ?>&dir=<?= $dir ?>&pagina=<?= $pagina + 1 ?>"
+           class="pag-btn <?= $pagina >= $total_pags ? 'disable' : '' ?>">›</a>
+      </div>
+    </div>
+  <?php endif; ?>
+
+</main>
+
+<!-- Modal de confirmação de exclusão -->
+<div class="overlay" id="overlay-excluir">
+  <div class="modal">
+    <div class="modal-icone">🗑️</div>
+    <h2>Excluir objeto?</h2>
+    <p>Tem certeza que deseja excluir <strong id="modal-nome"></strong>? Essa ação não pode ser desfeita.</p>
+    <div class="modal-botoes">
+      <button class="btn-cancelar" onclick="fecharModal('overlay-excluir')">Cancelar</button>
+      <a href="#" id="modal-link-excluir" class="btn-confirmar">Excluir</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de edição -->
+<div class="overlay" id="overlay-editar">
+  <div class="modal modal-edit">
+    <div class="modal-icone">✏️</div>
+    <h2>Editar objeto</h2>
+    <form method="POST" action="" style="margin-top:24px;">
+      <input type="hidden" name="nome_original" id="edit-nome-original">
+
+      <div class="field-group">
+        <label for="edit-nome">Nome</label>
+        <input type="text" id="edit-nome" name="editar_nome" required
+               placeholder="Nome do objeto" maxlength="255">
+      </div>
+
+      <div class="field-group" style="margin-bottom:28px;">
+        <label for="edit-quantidade">Quantidade</label>
+        <input type="number" id="edit-quantidade" name="editar_quantidade"
+               min="0" required placeholder="0">
+      </div>
+
+      <div class="modal-botoes">
+        <button type="button" class="btn-cancelar" onclick="fecharModal('overlay-editar')">Cancelar</button>
+        <button type="submit" class="btn-salvar">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // ── Exclusão ──────────────────────────────────────────────────────────────
+  function confirmarExclusao(nome) {
+    document.getElementById('modal-nome').textContent = '"' + nome + '"';
+    document.getElementById('modal-link-excluir').href = 'listar.php?excluir=' + encodeURIComponent(nome);
+    document.getElementById('overlay-excluir').classList.add('ativo');
+  }
+
+  // ── Edição ────────────────────────────────────────────────────────────────
+  function abrirEdicao(nome, quantidade) {
+    document.getElementById('edit-nome-original').value = nome;
+    document.getElementById('edit-nome').value          = nome;
+    document.getElementById('edit-quantidade').value    = quantidade;
+    document.getElementById('overlay-editar').classList.add('ativo');
+    // Foca no campo nome após animação
+    setTimeout(() => document.getElementById('edit-nome').focus(), 60);
+  }
+
+  // ── Fechar modais ─────────────────────────────────────────────────────────
+  function fecharModal(id) {
+    document.getElementById(id).classList.remove('ativo');
+  }
+
+  // Fecha ao clicar fora
+  document.querySelectorAll('.overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) fecharModal(this.id);
+    });
+  });
+
+  // Fecha com Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.overlay.ativo').forEach(el => el.classList.remove('ativo'));
+    }
+  });
+</script>
+
+</body>
+</html>
